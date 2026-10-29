@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle da TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fog: #d9dfe6;
+    --fog-deep: #c6ced8;
+    --shell: #2a313b;
+    --shell-edge: #1d232b;
+    --rubber: #3b4450;
+    --rubber-hi: #4a5462;
+    --ink: #e9eef3;
+    --ink-dim: #9aa6b4;
+    --amber: #f0b443;
+    --paper: #f7f9fb;
+    --text: #1f2731;
+    --text-dim: #5b6776;
+    --ok: #3fae6a;
+    --bad: #d2493f;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--fog);
+    color: var(--text);
+    font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 56px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 48px 32px;
+    align-items: start;
+  }
+
+  /* O controle: o único objeto "físico" da página */
+  .remote {
+    position: sticky;
+    top: 32px;
+    background: linear-gradient(160deg, #343c48 0%, var(--shell) 40%, var(--shell-edge) 100%);
+    border-radius: 120px 120px 64px 64px;
+    padding: 36px 30px 40px;
+    color: var(--ink);
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.08),
+      inset 0 -3px 0 rgba(0,0,0,.25),
+      0 30px 60px -20px rgba(29,35,43,.55);
+  }
+  .led {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin: 0 auto 22px;
+    background: #57606c;
+    transition: background .08s;
+  }
+  .led.on { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+  .led.err { background: var(--bad); box-shadow: 0 0 10px var(--bad); }
+
+  .key {
+    border: 0;
+    background: var(--rubber);
+    border-radius: 999px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 3px 0 var(--shell-edge);
+    display: grid; place-items: center;
+    transition: transform .06s, box-shadow .06s, background .06s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+  .key:hover { background: var(--rubber-hi); }
+  .key:active, .key.pressed { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 1px 0 var(--shell-edge); }
+  .key svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .top-row { display: flex; justify-content: space-between; margin-bottom: 26px; }
+  .top-row .key { width: 48px; height: 48px; }
+
+  .ring {
+    position: relative;
+    width: 216px; height: 216px;
+    margin: 0 auto 28px;
+    border-radius: 50%;
+    background: var(--rubber);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 4px 0 var(--shell-edge);
+  }
+  .ring .dir {
+    position: absolute; border: 0; background: transparent;
+    width: 72px; height: 72px; display: grid; place-items: center;
+    border-radius: 50%; color: var(--ink-dim);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .ring .dir:hover, .ring .dir.pressed { color: var(--amber); }
+  .ring .dir svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .dir.up { top: 0; left: 72px; }
+  .dir.down { bottom: 0; left: 72px; }
+  .dir.left { left: 0; top: 72px; }
+  .dir.right { right: 0; top: 72px; }
+  .ring .ok {
+    position: absolute; top: 58px; left: 58px;
+    width: 100px; height: 100px;
+    background: var(--shell);
+    border: 3px solid var(--amber);
+    font-weight: 700; font-size: 18px; letter-spacing: .02em;
+    box-shadow: 0 2px 0 var(--shell-edge);
+  }
+  .ring .ok:hover { background: #313945; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 20px; justify-items: center; margin-bottom: 26px; }
+  .grid3 .key { width: 60px; height: 60px; }
+  .cap { font-size: 12px; color: var(--ink-dim); margin-top: 6px; text-align: center; }
+  .cell { display: flex; flex-direction: column; align-items: center; }
+
+  .rocker {
+    display: flex; justify-content: center; gap: 20px; margin-bottom: 30px;
+  }
+  .rocker .vol {
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--rubber); border-radius: 999px; padding: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 3px 0 var(--shell-edge);
+  }
+  .rocker .vol .key { width: 52px; height: 52px; box-shadow: none; background: transparent; }
+  .rocker .vol .key:hover { background: var(--rubber-hi); }
+  .rocker .vol span { font-size: 11px; color: var(--ink-dim); }
+  .rocker .mute { width: 52px; height: 52px; align-self: center; }
+
+  .type {
+    display: flex; gap: 8px;
+    background: rgba(0,0,0,.22);
+    border-radius: 18px; padding: 6px;
+  }
+  .type input {
+    flex: 1; min-width: 0; border: 0; background: transparent;
+    color: var(--ink); font: inherit; padding: 8px 10px;
+  }
+  .type input::placeholder { color: var(--ink-dim); }
+  .type input:focus { outline: none; }
+  .type:focus-within { box-shadow: 0 0 0 2px var(--amber); }
+  .type button {
+    border: 0; border-radius: 12px; padding: 8px 14px;
+    background: var(--amber); color: var(--shell-edge); font-weight: 600;
+  }
+  .hint { font-size: 12px; color: var(--ink-dim); margin: 14px 4px 0; text-align: center; }
+
+  /* Lado direito: o que está na TV e a estante de apps */
+  .side { min-width: 0; }
+  .status { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 40px; line-height: 1.1; margin: 0; font-weight: 700; letter-spacing: -.02em; }
+  .conn { display: inline-flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 15px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fog-deep); }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .via {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--paper); border: 1px solid var(--fog-deep);
+    border-radius: 999px; padding: 4px 12px 4px 10px;
+    font-size: 14px; color: var(--text-dim);
+  }
+  .via svg { width: 16px; height: 16px; stroke: var(--text); fill: none; stroke-width: 2; stroke-linecap: round; }
+  .via.off svg { stroke: var(--bad); }
+
+  .screen {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #222932;
+    border-radius: 14px;
+    border: 10px solid #222932;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: 0 20px 40px -24px rgba(29,35,43,.6);
+  }
+  .screen img { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 4px; }
+  .screen .empty {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--ink-dim); text-align: center; padding: 24px;
+  }
+  .screen-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 44px; color: var(--text-dim); font-size: 15px; }
+  .btn {
+    border: 1px solid var(--fog-deep); background: var(--paper);
+    border-radius: 10px; padding: 8px 14px; font-weight: 600;
+  }
+  .btn:hover { border-color: var(--text-dim); }
+  label.auto { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+
+  .shelf-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  h2 { font-size: 26px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+  .count { color: var(--text-dim); font-weight: 400; font-size: 18px; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; }
+  .search {
+    border: 1px solid var(--fog-deep); background: var(--paper);
+    border-radius: 10px; padding: 8px 12px; font: inherit; width: 200px;
+  }
+  .seg { display: inline-flex; background: var(--fog-deep); border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; color: var(--text-dim); }
+  .seg button[aria-pressed="true"] { background: var(--paper); color: var(--text); font-weight: 600; }
+
+  .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 16px; }
+  .app {
+    position: relative;
+    background: var(--paper);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform .08s;
+  }
+  .app:hover { transform: translateY(-2px); }
+  .app:active { transform: translateY(1px); }
+  .app.current { box-shadow: 0 0 0 3px var(--amber); }
+  .app .open {
+    border: 0; background: transparent; padding: 0; text-align: left;
+    width: 100%; display: flex; flex-direction: column;
+  }
+  .app .open:focus-visible { outline-offset: -3px; }
+  .remove {
+    position: absolute; top: 8px; right: 8px;
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 0; background: rgba(31,39,49,.82); color: #fff;
+    display: grid; place-items: center;
+    opacity: 0; transition: opacity .1s;
+  }
+  .remove svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .remove:hover { background: var(--bad); }
+  .app:hover .remove, .app:focus-within .remove { opacity: 1; }
+  @media (hover: none) { .remove { opacity: 1; } }
+
+  .install-btn { border: 0; background: var(--shell); color: var(--ink); border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+  .install-btn:hover { background: var(--rubber); }
+  .progress { background: var(--paper); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; }
+  .progress p { margin: 0 0 10px; }
+  .bar { height: 6px; background: var(--fog); border-radius: 3px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; background: var(--amber); transition: width .2s; }
+  .bar.busy span { width: 35%; animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+
+  .drop {
+    position: fixed; inset: 0; z-index: 10;
+    background: rgba(42,49,59,.72);
+    display: grid; place-items: center;
+    color: var(--ink); font-size: 26px; font-weight: 700;
+    pointer-events: none;
+  }
+  .drop span { border: 3px dashed var(--amber); border-radius: 24px; padding: 48px 64px; }
+
+  dialog {
+    border: 0; border-radius: 16px; padding: 24px; max-width: 400px; width: calc(100vw - 32px);
+    background: var(--paper); color: var(--text);
+    box-shadow: 0 30px 60px -20px rgba(29,35,43,.6);
+  }
+  dialog::backdrop { background: rgba(29,35,43,.5); }
+  dialog h3 { margin: 0 0 8px; font-size: 22px; }
+  dialog p { margin: 0 0 20px; color: var(--text-dim); }
+  .actions { display: flex; justify-content: flex-end; gap: 10px; }
+  .danger { border: 0; background: var(--bad); color: #fff; border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+  .art {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    display: grid; place-items: center;
+    background: #e9edf2;
+  }
+  .art img.banner { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .art img.icon { width: 46%; height: auto; aspect-ratio: 1; object-fit: contain; }
+  .mono {
+    width: 56px; height: 56px; border-radius: 14px;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 24px; color: #fff;
+  }
+  .app .name { font-weight: 600; line-height: 1.2; }
+  .app .open > span:last-child { min-width: 0; padding: 10px 12px 12px; }
+  .app .pkg { font-size: 12px; color: var(--text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note { color: var(--text-dim); padding: 24px 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+    background: var(--shell); color: var(--ink);
+    padding: 12px 18px; border-radius: 12px;
+    opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s;
+    max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.bad { background: var(--bad); color: #fff; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; padding: 24px 16px; gap: 40px; }
+    .remote { position: static; max-width: 340px; width: 100%; margin: 0 auto; }
+    h1 { font-size: 30px; }
+    .search { width: 100%; }
+    .filters { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="remote" aria-label="Controle remoto">
+    <div class="led" id="led"></div>
+
+    <div class="top-row">
+      <button class="key" data-key="power" aria-label="Ligar ou desligar">
+        <svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>
+      </button>
+      <button class="key" data-key="menu" aria-label="Menu">
+        <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+      </button>
+    </div>
+
+    <div class="ring">
+      <button class="dir up" data-key="up" data-repeat aria-label="Cima"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button class="dir left" data-key="left" data-repeat aria-label="Esquerda"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="key ok" data-key="ok">OK</button>
+      <button class="dir right" data-key="right" data-repeat aria-label="Direita"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="dir down" data-key="down" data-repeat aria-label="Baixo"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+
+    <div class="grid3">
+      <div class="cell">
+        <button class="key" data-key="back" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+        <span class="cap">Voltar</span>
+      </div>
+      <div class="cell">
+        <button class="key" data-key="home" aria-label="Início"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
+        <span class="cap">Início</span>
+      </div>
+      <div class="cell">
+        <button class="key" data-key="del" data-repeat aria-label="Apagar"><svg viewBox="0 0 24 24"><path d="M20 6H9l-5 6 5 6h11z"/><path d="M13 10l4 4M17 10l-4 4"/></svg></button>
+        <span class="cap">Apagar</span>
+      </div>
+      <div class="cell">
+        <button class="key" data-key="rewind" data-repeat aria-label="Voltar o vídeo"><svg viewBox="0 0 24 24"><path d="M11 6l-7 6 7 6zM20 6l-7 6 7 6z"/></svg></button>
+        <span class="cap">Retroceder</span>
+      </div>
+      <div class="cell">
+        <button class="key" data-key="playpause" aria-label="Play ou pausa"><svg viewBox="0 0 24 24"><path d="M5 5l8 7-8 7z"/><path d="M16 5v14M20 5v14"/></svg></button>
+        <span class="cap">Play/Pausa</span>
+      </div>
+      <div class="cell">
+        <button class="key" data-key="forward" data-repeat aria-label="Avançar o vídeo"><svg viewBox="0 0 24 24"><path d="M13 6l7 6-7 6zM4 6l7 6-7 6z"/></svg></button>
+        <span class="cap">Avançar</span>
+      </div>
+    </div>
+
+    <div class="rocker">
+      <div class="vol">
+        <button class="key" data-key="volup" data-repeat aria-label="Aumentar volume"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span>vol</span>
+        <button class="key" data-key="voldown" data-repeat aria-label="Diminuir volume"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      </div>
+      <button class="key mute" data-key="mute" aria-label="Mudo"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button>
+    </div>
+
+    <form class="type" id="typeForm">
+      <input id="typeInput" placeholder="Digitar na TV" autocomplete="off" aria-label="Texto para digitar na TV">
+      <button type="submit">Enviar</button>
+    </form>
+    <p class="hint">Teclado: setas, Enter, Esc volta, H início, espaço pausa</p>
+  </aside>
+
+  <main class="side">
+    <div class="status">
+      <h1>Fire TV de Walker</h1>
+      <span class="conn"><span class="dot" id="dot"></span><span id="connText">Conectando…</span></span>
+      <span class="via" id="via" title="Infravermelho não é possível: a Firestick não tem receptor de IR e o Mac não tem emissor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1"/></svg>
+        <span id="viaText">Rede Wi-Fi</span>
+      </span>
+    </div>
+
+    <div class="screen" id="screen">
+      <div class="empty" id="screenEmpty">Clique em “Ver tela” para mostrar o que está passando na TV</div>
+      <img id="screenImg" alt="Tela atual da TV" hidden>
+    </div>
+    <div class="screen-bar">
+      <span id="screenNote">&nbsp;</span>
+      <span style="display:flex;gap:14px;align-items:center">
+        <label class="auto"><input type="checkbox" id="autoScreen"> Atualizar sozinho</label>
+        <button class="btn" id="refreshScreen">Ver tela</button>
+      </span>
+    </div>
+
+    <div class="shelf-head">
+      <h2>Apps <span class="count" id="count"></span></h2>
+      <div class="filters">
+        <input class="search" id="search" type="search" placeholder="Buscar app" aria-label="Buscar app">
+        <div class="seg" role="group" aria-label="Quais apps mostrar">
+          <button id="fTv" aria-pressed="true">Apps da TV</button>
+          <button id="fAll" aria-pressed="false">Todos</button>
+        </div>
+        <button class="install-btn" id="installBtn">Instalar APK</button>
+        <input type="file" id="apkFile" accept=".apk,application/vnd.android.package-archive" hidden>
+      </div>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <p id="progressText"></p>
+      <div class="bar" id="progressBar"><span></span></div>
+    </div>
+    <div class="apps" id="apps"><p class="note">Carregando apps da TV…</p></div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="drop" id="drop" hidden><span>Solte o APK para instalar na TV</span></div>
+<dialog id="confirm">
+  <h3 id="confirmTitle"></h3>
+  <p>O app e os dados dele (logins, downloads) serão apagados da TV.</p>
+  <div class="actions">
+    <button class="btn" id="confirmNo">Cancelar</button>
+    <button class="danger" id="confirmYes">Desinstalar</button>
+  </div>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORS = {
+  'com.netflix.ninja': '#e50914',
+  'com.amazon.firetv.youtube': '#ff0033',
+  'com.amazon.firebat': '#1a98ff',
+  'com.amazon.avod': '#1a98ff',
+  'com.amazon.bueller.music': '#25d1da',
+  'com.disney.disneyplus': '#113ccf',
+  'com.hbo.hbonow': '#002be7',
+  'com.globo.globotv': '#f2552c',
+  'com.cbs.ca': '#0064ff',
+  'tv.pluto.android': '#2b2b2b',
+  'com.crunchyroll.crunchyroid': '#f47521',
+  'cm.aptoidetv.pt': '#fe6446',
+  'com.esaba.downloader': '#f59e0b',
+  'com.angel.tv': '#1f6f5c',
+  'com.amazon.shoptv.firetv.client': '#ff9900',
+};
+const PALETTE = ['#4b6584', '#3c8d7a', '#8a5a9e', '#b5654a', '#5a7d2e', '#2f6fa3'];
+
+let apps = [];
+let filter = 'tv';
+let currentPkg = null;
+
+function toast(msg, bad = false) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.toggle('bad', bad);
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function blink(ok) {
+  const led = $('led');
+  led.className = 'led ' + (ok ? 'on' : 'err');
+  clearTimeout(blink.timer);
+  blink.timer = setTimeout(() => (led.className = 'led'), ok ? 120 : 800);
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  return data;
+}
+
+let link = { ip: '', fast: true, ms: null };
+function renderVia(ok = true) {
+  const parts = ['Rede Wi-Fi'];
+  if (link.ip) parts.push(link.ip);
+  if (!link.fast) parts.push('modo lento');
+  if (link.ms != null) parts.push(`${link.ms} ms`);
+  $('viaText').textContent = ok ? parts.join(', ') : 'Rede Wi-Fi sem resposta';
+  $('via').classList.toggle('off', !ok);
+}
+
+async function press(key) {
+  const t = performance.now();
+  try {
+    await api('/api/key', { key });
+    link.ms = Math.round(performance.now() - t);
+    renderVia();
+    blink(true);
+  } catch (e) { blink(false); renderVia(false); toast(e.message, true); }
+}
+
+// Botões com data-repeat repetem enquanto ficam pressionados, como num controle de verdade.
+document.querySelectorAll('[data-key]').forEach((btn) => {
+  const key = btn.dataset.key;
+  let delay, interval;
+  const stop = () => { clearTimeout(delay); clearInterval(interval); btn.classList.remove('pressed'); };
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    btn.classList.add('pressed');
+    press(key);
+    if (btn.hasAttribute('data-repeat')) delay = setTimeout(() => (interval = setInterval(() => press(key), 160)), 450);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, stop));
+  btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); press(key); } });
+});
+
+const KEYMAP = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  Enter: 'ok', Escape: 'back', Backspace: 'back', h: 'home', H: 'home',
+  ' ': 'playpause', '+': 'volup', '=': 'volup', '-': 'voldown', m: 'menu', M: 'menu',
+};
+document.addEventListener('keydown', (e) => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if ($('confirm').open) return;
+  if (document.activeElement?.closest('[data-key], .app, .btn, .seg, .install-btn')) {
+    if (e.key === 'Enter' || e.key === ' ') return;
+  }
+  const key = KEYMAP[e.key];
+  if (!key) return;
+  e.preventDefault();
+  const btn = document.querySelector(`[data-key="${key}"]`);
+  btn?.classList.add('pressed');
+  setTimeout(() => btn?.classList.remove('pressed'), 120);
+  press(key);
+});
+
+$('typeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('typeInput').value;
+  if (!text) return;
+  try { await api('/api/text', { text }); $('typeInput').value = ''; toast('Texto enviado'); }
+  catch (err) { toast(err.message, true); }
+});
+
+function initials(label) {
+  return label.replace(/[^A-Za-zÀ-ú0-9+ ]/g, '').trim().charAt(0).toUpperCase() || '?';
+}
+function colorFor(app) {
+  if (COLORS[app.pkg]) return COLORS[app.pkg];
+  let h = 0;
+  for (const c of app.pkg) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+function renderApps() {
+  const q = $('search').value.trim().toLowerCase();
+  const list = apps.filter((a) => (filter === 'all' || a.tv) && (!q || a.label.toLowerCase().includes(q) || a.pkg.includes(q)));
+  $('count').textContent = list.length;
+  const box = $('apps');
+  box.replaceChildren();
+  if (!list.length) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = q ? `Nenhum app com “${q}”. Tente “Todos” para incluir apps do sistema.` : 'Nenhum app encontrado.';
+    box.append(p);
+    return;
+  }
+  for (const app of list) {
+    const card = document.createElement('div');
+    card.className = 'app' + (app.pkg === currentPkg ? ' current' : '');
+    const b = document.createElement('button');
+    b.className = 'open';
+    b.title = `Abrir ${app.label}`;
+    const art = document.createElement('span');
+    art.className = 'art';
+    const src = app.banner || app.icon;
+    if (src) {
+      const img = document.createElement('img');
+      img.className = app.banner ? 'banner' : 'icon';
+      img.src = src;
+      img.alt = '';
+      img.loading = 'lazy';
+      art.append(img);
+    } else {
+      const mono = document.createElement('span');
+      mono.className = 'mono';
+      mono.style.background = colorFor(app);
+      mono.textContent = initials(app.label);
+      art.append(mono);
+    }
+    const info = document.createElement('span');
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = app.label;
+    const pkg = document.createElement('div');
+    pkg.className = 'pkg';
+    pkg.textContent = app.pkg;
+    info.append(name, pkg);
+    b.append(art, info);
+    b.addEventListener('click', () => launch(app));
+    card.append(b);
+    if (app.removable) {
+      const rm = document.createElement('button');
+      rm.className = 'remove';
+      rm.setAttribute('aria-label', `Desinstalar ${app.label}`);
+      rm.title = `Desinstalar ${app.label}`;
+      rm.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+      rm.addEventListener('click', () => askUninstall(app));
+      card.append(rm);
+    }
+    box.append(card);
+  }
+}
+
+let pendingRemoval = null;
+function askUninstall(app) {
+  pendingRemoval = app;
+  $('confirmTitle').textContent = `Desinstalar ${app.label}?`;
+  $('confirm').showModal();
+}
+$('confirmNo').addEventListener('click', () => $('confirm').close());
+$('confirmYes').addEventListener('click', async () => {
+  const app = pendingRemoval;
+  $('confirm').close();
+  if (!app) return;
+  showProgress(`Desinstalando ${app.label}…`, null);
+  try {
+    await api('/api/uninstall', { pkg: app.pkg });
+    hideProgress();
+    toast(`${app.label} desinstalado`);
+    loadApps();
+  } catch (e) { hideProgress(); toast(e.message, true); }
+});
+
+function showProgress(text, pct) {
+  $('progress').hidden = false;
+  $('progressText').textContent = text;
+  const bar = $('progressBar');
+  bar.classList.toggle('busy', pct == null);
+  bar.firstElementChild.style.width = pct == null ? '' : `${pct}%`;
+}
+function hideProgress() { $('progress').hidden = true; }
+
+// XHR em vez de fetch para ter o progresso do envio.
+function installApk(file) {
+  if (!/\.apk$/i.test(file.name)) { toast('Escolha um arquivo .apk', true); return; }
+  const mb = (file.size / 1048576).toFixed(1);
+  showProgress(`Enviando ${file.name} (${mb} MB)… 0%`, 0);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/install');
+  xhr.setRequestHeader('Content-Type', 'application/vnd.android.package-archive');
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    if (pct < 100) showProgress(`Enviando ${file.name} (${mb} MB)… ${pct}%`, pct);
+    else showProgress(`Instalando ${file.name} na TV… isso pode levar um minuto`, null);
+  };
+  xhr.onload = () => {
+    let data = {};
+    try { data = JSON.parse(xhr.responseText); } catch {}
+    hideProgress();
+    if (xhr.status === 200) { toast(`${data.label} instalado`); loadApps(); }
+    else toast(data.error || `Erro ${xhr.status}`, true);
+  };
+  xhr.onerror = () => { hideProgress(); toast('O envio falhou. Confira se o servidor está rodando.', true); };
+  xhr.send(file);
+}
+$('installBtn').addEventListener('click', () => $('apkFile').click());
+$('apkFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (file) installApk(file);
+});
+
+let dragDepth = 0;
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragenter', (e) => { if (hasFiles(e)) { dragDepth++; $('drop').hidden = false; } });
+document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').hidden = true; } });
+document.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+document.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  $('drop').hidden = true;
+  const file = e.dataTransfer.files[0];
+  if (file) installApk(file);
+});
+
+async function launch(app) {
+  try {
+    await api('/api/launch', { pkg: app.pkg });
+    toast(`Abrindo ${app.label}`);
+    setTimeout(refreshStatus, 1500);
+    if ($('autoScreen').checked) setTimeout(refreshScreen, 3000);
+  } catch (e) { toast(e.message, true); }
+}
+
+function setFilter(f) {
+  filter = f;
+  $('fTv').setAttribute('aria-pressed', f === 'tv');
+  $('fAll').setAttribute('aria-pressed', f === 'all');
+  renderApps();
+}
+$('fTv').addEventListener('click', () => setFilter('tv'));
+$('fAll').addEventListener('click', () => setFilter('all'));
+$('search').addEventListener('input', renderApps);
+
+async function loadApps() {
+  try {
+    const data = await api('/api/apps');
+    apps = data.apps;
+    renderApps();
+    // Os ícones são extraídos da TV aos poucos na primeira execução; recarrega até terminar.
+    if (data.iconsPending > 0) setTimeout(loadApps, 4000);
+  }
+  catch (e) { $('apps').innerHTML = ''; const p = document.createElement('p'); p.className = 'note'; p.textContent = `Não deu para listar os apps: ${e.message}`; $('apps').append(p); }
+}
+
+async function refreshStatus() {
+  try {
+    const s = await api('/api/status');
+    const ok = s.state === 'device';
+    link.ip = s.tv.split(':')[0];
+    link.fast = s.fastKeys;
+    renderVia(ok);
+    $('dot').className = 'dot ' + (ok ? 'ok' : 'bad');
+    const app = apps.find((a) => a.pkg === s.app);
+    $('connText').textContent = ok ? (app ? `No ar: ${app.label}` : 'Conectada') : `Estado: ${s.state}`;
+    if (s.app !== currentPkg) { currentPkg = s.app; renderApps(); }
+  } catch (e) {
+    renderVia(false);
+    $('dot').className = 'dot bad';
+    $('connText').textContent = 'TV desconectada. Confira se ela está ligada e na mesma rede.';
+  }
+}
+
+let screenBusy = false;
+async function refreshScreen() {
+  if (screenBusy) return;
+  screenBusy = true;
+  $('screenNote').textContent = 'Capturando…';
+  try {
+    const res = await fetch('/api/screen');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erro ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    const img = $('screenImg');
+    if (img.src) URL.revokeObjectURL(img.src);
+    img.src = url;
+    img.hidden = false;
+    $('screenEmpty').hidden = true;
+    $('screenNote').textContent = `Atualizada às ${new Date().toLocaleTimeString('pt-BR')}`;
+  } catch (e) {
+    $('screenImg').hidden = true;
+    $('screenEmpty').hidden = false;
+    $('screenEmpty').textContent = e.message;
+    $('screenNote').textContent = ' ';
+  } finally { screenBusy = false; }
+}
+$('refreshScreen').addEventListener('click', refreshScreen);
+setInterval(() => { if ($('autoScreen').checked && !document.hidden) refreshScreen(); }, 3000);
+
+loadApps().then(refreshStatus);
+setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

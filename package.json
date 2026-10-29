@@ -1,0 +1,10 @@
+{
+  "name": "tv-pai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controle remoto web para a Fire TV via ADB",
+  "scripts": {
+    "start": "node server.js",
+    "start:rede": "HOST=0.0.0.0 node server.js"
+  }
+}

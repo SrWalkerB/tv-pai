@@ -1,0 +1,19 @@
+node_modules/
+.DS_Store
+
+# APKs gerados (publicados nas Releases do GitHub, não no código)
+releases/
+*.apk
+
+# cache local do servidor web (ícones extraídos dos apps da TV)
+cache/
+
+# capturas da TV usadas durante o desenvolvimento
+tela.png
+
+# saída de build do módulo nativo
+build/
+.gradle/
+
+# configurações locais do Claude Code
+.claude/

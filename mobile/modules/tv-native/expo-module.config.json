@@ -1,0 +1,14 @@
+{
+  "platforms": [
+    "android"
+  ],
+  "android": {
+    "modules": [
+      "expo.modules.tvnative.FireIrModule",
+      "expo.modules.tvnative.FireBtModule",
+      "expo.modules.tvnative.TvKeysModule",
+      "expo.modules.tvnative.TvDiscoveryModule",
+      "expo.modules.tvnative.TvHttpModule"
+    ]
+  }
+}
